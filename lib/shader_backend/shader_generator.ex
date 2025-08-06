@@ -17,15 +17,16 @@ defmodule ShaderBackend.ShaderGenerator do
     Logger.debug("Built prompt (#{String.length(prompt)} characters)")
     
     # Get API key from environment variable
-    api_key = "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"
+    api_key = System.get_env("OPENAI_API_KEY") || ""
     
     if api_key == "" do
-      Logger.warn("⚠️  No API key provided, using default shader")
-      # Return a default shader if no API key is provided
-      {:ok, default_shader()}
+      Logger.warn("⚠️  No OPENAI_API_KEY environment variable found")
+      Logger.info("💡 To use LLM generation, set OPENAI_API_KEY environment variable")
+      # Return error when no API key is provided
+      {:error, "No OpenAI API key configured. Please set the OPENAI_API_KEY environment variable."}
     else
       Logger.info("🤖 Making LLM API request...")
-      Logger.debug("API key present: #{String.slice(api_key, 0, 10)}...")
+      Logger.debug("API key present: #{api_key}")
       
       case make_llm_request(prompt, api_key) do
         {:ok, shader_code} -> 
@@ -33,8 +34,8 @@ defmodule ShaderBackend.ShaderGenerator do
           {:ok, shader_code}
         {:error, reason} -> 
           Logger.error("❌ LLM request failed: #{reason}")
-          Logger.info("🔄 Falling back to default shader")
-          {:ok, default_shader()}
+          # Return error instead of falling back to default shader
+          {:error, reason}
       end
     end
   end
@@ -57,11 +58,13 @@ defmodule ShaderBackend.ShaderGenerator do
     You MUST add a comment line "// GEOMETRY: [type]" right after the "// Vertex Shader" line to specify what 3D shape to render.
     Available geometry types: cube, sphere, plane, cylinder, torus
     Choose the geometry type that BEST matches the user's description:
-    - cube: boxes, cubes, rectangular objects, buildings, dice
-    - sphere: balls, planets, round objects, marbles, bubbles
-    - plane: flat surfaces, ground, walls, screens, floors, mirrors
-    - cylinder: tubes, pipes, pillars, cans, bottles, logs
-    - torus: donuts, rings, tires, bagels, hoops
+    - cube: boxes, cubes, rectangular objects, buildings, dice, crystals
+    - sphere: balls, planets, round objects, marbles, bubbles, orbs, glowing objects
+    - plane: flat surfaces, ground, walls, screens, floors, mirrors, water, ocean, waves
+    - cylinder: tubes, pipes, pillars, cans, bottles, logs, towers, columns
+    - torus: donuts, rings, tires, bagels, hoops, portals, loops
+    
+    IMPORTANT: Analyze the user's description carefully and pick the geometry that makes the MOST SENSE for their request.
 
     Standard 3D Vertex Shader Template:
     // Vertex Shader
@@ -82,8 +85,25 @@ defmodule ShaderBackend.ShaderGenerator do
       gl_Position = projectionMatrix * viewMatrix * worldPosition;
     }
 
-    Create a fragment shader that uses vNormal and vPosition for lighting and visual effects.
-    The geometry will be automatically generated based on your GEOMETRY specification.
+    Fragment Shader Requirements:
+    - MUST declare: precision mediump float;
+    - MUST declare these uniforms if you use them: uniform float time; uniform vec2 resolution;
+    - MUST use these varyings: varying vec3 vNormal; varying vec3 vPosition;
+    - Use vNormal and vPosition for lighting and visual effects
+    - The geometry will be automatically generated based on your GEOMETRY specification
+    
+    Example Fragment Shader structure:
+    // Fragment Shader
+    precision mediump float;
+    uniform float time;
+    uniform vec2 resolution;
+    varying vec3 vNormal;
+    varying vec3 vPosition;
+    
+    void main() {
+      // Your shader logic here
+      gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
+    }
     """
   end
 
@@ -130,15 +150,17 @@ defmodule ShaderBackend.ShaderGenerator do
             Logger.info("🎨 Successfully extracted shader code from LLM response")
             Logger.debug("🔍 Response structure: #{inspect(Map.keys(decoded_response))}")
             Logger.debug("📊 Generated shader length: #{String.length(shader_code)} characters")
+            # Return the raw shader code regardless of whether it's valid or not
+            # Frontend will handle compilation errors and display them
             {:ok, shader_code}
           {:ok, unexpected_format} ->
             Logger.error("❌ Unexpected response format from LLM API")
             Logger.debug("🔍 Received format: #{inspect(unexpected_format)}")
-            {:error, "Invalid response format from LLM"}
+            {:error, "Invalid response format from LLM. Raw response: #{inspect(unexpected_format)}"}
           {:error, json_error} ->
             Logger.error("❌ Failed to parse JSON response: #{inspect(json_error)}")
             Logger.debug("📄 Raw response body: #{String.slice(response_body, 0, 500)}...")
-            {:error, "Failed to parse LLM response JSON"}
+            {:error, "Failed to parse LLM response JSON. Raw response: #{String.slice(response_body, 0, 500)}"}
         end
       
       {:ok, %HTTPoison.Response{status_code: status_code, body: error_body}} ->

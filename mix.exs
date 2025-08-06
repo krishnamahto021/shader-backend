@@ -25,7 +25,8 @@ defmodule ShaderBackend.MixProject do
       {:plug_cowboy, "~> 2.5"},
       {:jason, "~> 1.4"},
       {:cors_plug, "~> 3.0"},
-      {:httpoison, "~> 2.0"}
+      {:httpoison, "~> 2.0"},
+      {:dotenv, "~> 3.0"}
     ]
   end
 end

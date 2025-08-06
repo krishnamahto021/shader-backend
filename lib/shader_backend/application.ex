@@ -7,6 +7,9 @@ defmodule ShaderBackend.Application do
   def start(_type, _args) do
     require Logger
     
+    # Load .env file
+    Dotenv.load()
+    
     Logger.info("🚀 Starting ShaderBackend application...")
     
     children = [
