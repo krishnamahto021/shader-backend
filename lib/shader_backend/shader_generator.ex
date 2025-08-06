@@ -2,24 +2,39 @@ defmodule ShaderBackend.ShaderGenerator do
   @moduledoc """
   Generates WebGL shaders using LLM API
   """
+  
+  require Logger
 
   # You can use OpenAI, Gemini, or any other LLM API
   # This example uses OpenAI API format, but you can adapt it
   @api_url "https://api.openai.com/v1/chat/completions"
   
   def generate_shader(description) do
+    Logger.info("🔧 Starting shader generation process")
+    Logger.debug("Input description: \"#{description}\"")
+    
     prompt = build_prompt(description)
+    Logger.debug("Built prompt (#{String.length(prompt)} characters)")
     
     # Get API key from environment variable
     api_key = "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"
     
     if api_key == "" do
+      Logger.warn("⚠️  No API key provided, using default shader")
       # Return a default shader if no API key is provided
       {:ok, default_shader()}
     else
+      Logger.info("🤖 Making LLM API request...")
+      Logger.debug("API key present: #{String.slice(api_key, 0, 10)}...")
+      
       case make_llm_request(prompt, api_key) do
-        {:ok, shader_code} -> {:ok, shader_code}
-        {:error, reason} -> {:error, reason}
+        {:ok, shader_code} -> 
+          Logger.info("✅ LLM request successful")
+          {:ok, shader_code}
+        {:error, reason} -> 
+          Logger.error("❌ LLM request failed: #{reason}")
+          Logger.info("🔄 Falling back to default shader")
+          {:ok, default_shader()}
       end
     end
   end
@@ -38,8 +53,19 @@ defmodule ShaderBackend.ShaderGenerator do
     7. Use time-based animation for rotation or color changes if appropriate
     8. Return ONLY the shader code, no explanations
 
+    GEOMETRY SPECIFICATION:
+    You MUST add a comment line "// GEOMETRY: [type]" right after the "// Vertex Shader" line to specify what 3D shape to render.
+    Available geometry types: cube, sphere, plane, cylinder, torus
+    Choose the geometry type that BEST matches the user's description:
+    - cube: boxes, cubes, rectangular objects, buildings, dice
+    - sphere: balls, planets, round objects, marbles, bubbles
+    - plane: flat surfaces, ground, walls, screens, floors, mirrors
+    - cylinder: tubes, pipes, pillars, cans, bottles, logs
+    - torus: donuts, rings, tires, bagels, hoops
+
     Standard 3D Vertex Shader Template:
     // Vertex Shader
+    // GEOMETRY: [choose appropriate type based on description]
     attribute vec3 position;
     attribute vec3 normal;
     uniform mat4 modelMatrix;
@@ -57,17 +83,19 @@ defmodule ShaderBackend.ShaderGenerator do
     }
 
     Create a fragment shader that uses vNormal and vPosition for lighting and visual effects.
-    For cubes, spheres, and other 3D objects, use proper lighting calculations.
+    The geometry will be automatically generated based on your GEOMETRY specification.
     """
   end
 
   defp make_llm_request(prompt, api_key) do
+    Logger.debug("🌐 Preparing HTTP request to OpenAI API")
+    
     headers = [
       {"Authorization", "Bearer #{api_key}"},
       {"Content-Type", "application/json"}
     ]
 
-    body = Jason.encode!(%{
+    request_body = %{
       "model" => "gpt-3.5-turbo",
       "messages" => [
         %{
@@ -81,28 +109,59 @@ defmodule ShaderBackend.ShaderGenerator do
       ],
       "temperature" => 0.7,
       "max_tokens" => 2000
-    })
+    }
+    
+    body = Jason.encode!(request_body)
+    Logger.debug("📝 Request body size: #{String.length(body)} bytes")
+    Logger.debug("🎯 API URL: #{@api_url}")
+    Logger.debug("⏱️  Request timeout: 30 seconds")
 
+    start_time = System.monotonic_time(:millisecond)
+    
     case HTTPoison.post(@api_url, body, headers, timeout: 30_000, recv_timeout: 30_000) do
       {:ok, %HTTPoison.Response{status_code: 200, body: response_body}} ->
+        end_time = System.monotonic_time(:millisecond)
+        duration = end_time - start_time
+        Logger.info("✅ HTTP request completed successfully in #{duration}ms")
+        Logger.debug("📥 Response body size: #{String.length(response_body)} bytes")
+        
         case Jason.decode(response_body) do
-          {:ok, %{"choices" => [%{"message" => %{"content" => shader_code}} | _]}} ->
+          {:ok, %{"choices" => [%{"message" => %{"content" => shader_code}} | _]} = decoded_response} ->
+            Logger.info("🎨 Successfully extracted shader code from LLM response")
+            Logger.debug("🔍 Response structure: #{inspect(Map.keys(decoded_response))}")
+            Logger.debug("📊 Generated shader length: #{String.length(shader_code)} characters")
             {:ok, shader_code}
-          _ ->
+          {:ok, unexpected_format} ->
+            Logger.error("❌ Unexpected response format from LLM API")
+            Logger.debug("🔍 Received format: #{inspect(unexpected_format)}")
             {:error, "Invalid response format from LLM"}
+          {:error, json_error} ->
+            Logger.error("❌ Failed to parse JSON response: #{inspect(json_error)}")
+            Logger.debug("📄 Raw response body: #{String.slice(response_body, 0, 500)}...")
+            {:error, "Failed to parse LLM response JSON"}
         end
       
       {:ok, %HTTPoison.Response{status_code: status_code, body: error_body}} ->
+        end_time = System.monotonic_time(:millisecond)
+        duration = end_time - start_time
+        Logger.error("❌ HTTP request failed with status #{status_code} in #{duration}ms")
+        Logger.debug("📄 Error response body: #{String.slice(error_body, 0, 500)}...")
         {:error, "LLM API error (#{status_code}): #{error_body}"}
       
       {:error, %HTTPoison.Error{reason: reason}} ->
+        end_time = System.monotonic_time(:millisecond)
+        duration = end_time - start_time
+        Logger.error("❌ Network error after #{duration}ms: #{inspect(reason)}")
         {:error, "Network error: #{inspect(reason)}"}
     end
   end
 
   defp default_shader do
-    """
+    Logger.info("🎨 Returning default shader (fallback)")
+    
+    shader = """
     // Vertex Shader
+    // GEOMETRY: cube
     attribute vec3 position;
     attribute vec3 normal;
     uniform mat4 modelMatrix;
@@ -144,5 +203,8 @@ defmodule ShaderBackend.ShaderGenerator do
       gl_FragColor = vec4(finalColor, 1.0);
     }
     """
+    
+    Logger.debug("📊 Default shader length: #{String.length(shader)} characters")
+    shader
   end
 end
