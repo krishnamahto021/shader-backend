@@ -2,7 +2,8 @@ defmodule ShaderBackend.Router do
   use Plug.Router
   require Logger
 
-  plug CORSPlug, origin: ["http://localhost:5173", "http://localhost:5174"]
+  plug CORSPlug, origin: ["http://localhost:5173", "http://localhost:5174",
+  "https://frontend-kappa-ten-78.vercel.app"]
   plug :match
   plug Plug.Parsers,
     parsers: [:json],
