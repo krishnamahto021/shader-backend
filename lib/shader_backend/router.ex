@@ -44,7 +44,7 @@ defmodule ShaderBackend.Router do
         end
       
       _ ->
-        Logger.warn("⚠️  Invalid request format received")
+        Logger.warning("⚠️  Invalid request format received")
         Logger.debug("Invalid body params: #{inspect(conn.body_params)}")
         
         response = Jason.encode!(%{
@@ -57,7 +57,7 @@ defmodule ShaderBackend.Router do
   end
 
   match _ do
-    Logger.warn("🔍 404 - Route not found: #{conn.method} #{conn.request_path}")
+    Logger.warning("🔍 404 - Route not found: #{conn.method} #{conn.request_path}")
     Logger.debug("Available routes: POST /api/generate-shader")
     send_resp(conn, 404, "Not found")
   end

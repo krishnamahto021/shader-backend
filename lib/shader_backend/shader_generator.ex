@@ -20,7 +20,7 @@ defmodule ShaderBackend.ShaderGenerator do
     api_key = System.get_env("OPENAI_API_KEY") || ""
     
     if api_key == "" do
-      Logger.warn("⚠️  No OPENAI_API_KEY environment variable found")
+      Logger.warning("⚠️  No OPENAI_API_KEY environment variable found")
       Logger.info("💡 To use LLM generation, set OPENAI_API_KEY environment variable")
       # Return error when no API key is provided
       {:error, "No OpenAI API key configured. Please set the OPENAI_API_KEY environment variable."}
@@ -178,55 +178,5 @@ defmodule ShaderBackend.ShaderGenerator do
     end
   end
 
-  defp default_shader do
-    Logger.info("🎨 Returning default shader (fallback)")
-    
-    shader = """
-    // Vertex Shader
-    // GEOMETRY: cube
-    attribute vec3 position;
-    attribute vec3 normal;
-    uniform mat4 modelMatrix;
-    uniform mat4 viewMatrix;
-    uniform mat4 projectionMatrix;
-    uniform float time;
-    varying vec3 vNormal;
-    varying vec3 vPosition;
 
-    void main() {
-      vec4 worldPosition = modelMatrix * vec4(position, 1.0);
-      vPosition = worldPosition.xyz;
-      vNormal = normalize((modelMatrix * vec4(normal, 0.0)).xyz);
-      gl_Position = projectionMatrix * viewMatrix * worldPosition;
-    }
-
-    // Fragment Shader
-    precision mediump float;
-    uniform float time;
-    uniform vec2 resolution;
-    varying vec3 vNormal;
-    varying vec3 vPosition;
-    
-    void main() {
-      // Simple lighting calculation
-      vec3 lightDirection = normalize(vec3(1.0, 1.0, 1.0));
-      float lightIntensity = max(dot(vNormal, lightDirection), 0.2);
-      
-      // Animated colors based on time and position
-      vec3 baseColor = vec3(
-        0.5 + 0.5 * sin(time + vPosition.x * 2.0),
-        0.5 + 0.5 * cos(time * 1.3 + vPosition.y * 2.0),
-        0.5 + 0.5 * sin(time * 0.7 + vPosition.z * 2.0)
-      );
-      
-      // Apply lighting
-      vec3 finalColor = baseColor * lightIntensity;
-      
-      gl_FragColor = vec4(finalColor, 1.0);
-    }
-    """
-    
-    Logger.debug("📊 Default shader length: #{String.length(shader)} characters")
-    shader
-  end
 end
